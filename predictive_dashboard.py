@@ -8,14 +8,14 @@ from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 
-# Streamlit config
+# Set Streamlit config
 st.set_page_config(layout="wide", page_title="Company Insights Dashboard")
 st.title("Company Insights Dashboard")
 
-# Upload file
+# File uploader
 uploaded_file = st.file_uploader("Upload your company data CSV", type=["csv"])
 
-# Parse Market Cap helper
+# Function to parse market cap values
 def parse_market_cap(value):
     try:
         value = str(value).strip().replace(",", "").replace("$", "")
@@ -30,34 +30,36 @@ def parse_market_cap(value):
         else:
             return float(value)
     except Exception as e:
+        print(f"Could not parse market cap value: {value} — {e}")
         return None
 
-# Main logic
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
+
+    # Strip column names
     df.columns = df.columns.str.strip()
 
     # Parse Market Cap
     if 'Market Cap' in df.columns:
         df['Market Cap'] = df['Market Cap'].apply(parse_market_cap)
 
-    # Group and normalize similar rows
+    # Group and normalize similar rows except Company Name and Market Cap
     cat_cols = [col for col in df.columns if col not in ['Company Name', 'Market Cap']]
     if len(cat_cols) > 0:
         grouped = (
             df.groupby(cat_cols, dropna=False)
-            .agg({
-                'Company Name': lambda x: ', '.join(sorted(set(x.dropna()))),
-                'Market Cap': 'mean'
-            })
-            .reset_index()
+              .agg({
+                  'Company Name': lambda x: ', '.join(sorted(set(x.dropna()))),
+                  'Market Cap': 'mean'
+              })
+              .reset_index()
         )
         df = grouped[['Company Name', 'Market Cap'] + cat_cols]
 
     st.subheader("Filtered Data")
     st.dataframe(df)
 
-    # Sidebar filters
+    # Sidebar Filters
     with st.sidebar:
         st.header("Filters")
         business_area = st.multiselect("Business Area", options=df['Business Area'].dropna().unique())
@@ -102,12 +104,14 @@ if uploaded_file is not None:
         )
         st.plotly_chart(fig3, use_container_width=True)
 
-    # Product Pie Chart
+    # Added pie chart for Product
     if 'product' in filtered_df.columns:
         st.subheader("Company Distribution by Product")
         product_counts = filtered_df['product'].value_counts().reset_index()
         product_counts.columns = ['product', 'Count']
-        if not product_counts.empty:
+        if product_counts.empty:
+            st.write("No data available for product column.")
+        else:
             fig_pie = px.pie(
                 product_counts,
                 names='product',
@@ -116,10 +120,8 @@ if uploaded_file is not None:
                 hole=0.3
             )
             st.plotly_chart(fig_pie, use_container_width=True)
-        else:
-            st.write("No data available for product column.")
 
-    # Predict Market Cap
+    # Optional ML Model
     st.subheader("Predict Market Cap (Simple Model)")
     if 'Market Cap' in df.columns:
         model_df = df.dropna(subset=['Market Cap'])
@@ -144,4 +146,4 @@ if uploaded_file is not None:
 
             st.write(f"Sample prediction result: ${y_pred[0]:,.0f}")
         else:
-            st.warning("Missing required columns for prediction.")
+            st.warning("One or more required columns are missing for prediction.")
