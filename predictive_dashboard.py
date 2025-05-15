@@ -175,7 +175,7 @@ from pyngrok import ngrok
 import time
 
 # Make sure no Streamlit apps are already running
-!pkill streamlit
+#!pkill streamlit
 
 # Start streamlit app as a background process
 process = subprocess.Popen(['streamlit', 'run', 'app.py'])
