@@ -7,7 +7,7 @@ Original file is located at
     https://colab.research.google.com/drive/1aEmDbuxrobGtozkM2yyaZvfredoxQOl1
 """
 
-!pip install streamlit pyngrok pandas openpyxl scikit-learn plotly
+
 
 from google.colab import files
 uploaded = files.upload()
