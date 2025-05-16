@@ -56,6 +56,21 @@ if uploaded_file is not None:
         )
         df = grouped[['Company Name', 'Market Cap'] + cat_cols]
 
+    # Normalize Business Area names
+        business_area_map = {
+            'Exosome Therapy': 'Exosome-Based Therapy',
+            'Exosome Therapeutics': 'Exosome-Based Therapy',
+            'Extracellular Vesicles': 'Exosome-Based Therapy',
+            'Cell Therapy': 'Cell-Based Therapy',
+            'CAR-T Therapy': 'Cell-Based Therapy',
+            'Gene Therapy': 'Gene & Nucleic Acid Therapies',
+            'mRNA Therapeutics': 'Gene & Nucleic Acid Therapies',
+            'siRNA': 'Gene & Nucleic Acid Therapies',
+            'Rejuvenation': 'Longevity & Anti-aging',
+            'Longevity': 'Longevity & Anti-aging',
+            # Add more as needed
+        }
+
     st.subheader("Filtered Data")
     st.dataframe(df)
 
