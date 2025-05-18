@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
@@ -32,12 +33,6 @@ def parse_market_cap(value):
     except Exception as e:
         print(f"Could not parse market cap value: {value} — {e}")
         return None
-
-# Function to reduce category counts
-def reduce_categories(series, top_n=5, other_label="Other"):
-    counts = series.value_counts()
-    top_categories = counts.nlargest(top_n).index
-    return series.apply(lambda x: x if x in top_categories else other_label)
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
@@ -79,20 +74,14 @@ if uploaded_file is not None:
         if 'Business Area' in df.columns:
             df['Business Area'] = df['Business Area'].replace(business_area_map)
 
-        # 🔽 Step: Reduce category counts across all other categorical columns
-        for col in df.columns:
-            if col not in ['Company Name', 'Market Cap'] and df[col].dtype == 'object':
-                df[col] = reduce_categories(df[col], top_n=8)
-
-    # Show filtered data
     st.subheader("Filtered Data")
     st.dataframe(df)
 
     # Sidebar Filters
     with st.sidebar:
         st.header("Filters")
-        business_area = st.multiselect("Business Area", options=df['Business Area'].dropna().unique() if 'Business Area' in df.columns else [])
-        location = st.multiselect("Location", options=df['Location'].dropna().unique() if 'Location' in df.columns else [])
+        business_area = st.multiselect("Business Area", options=df['Business Area'].dropna().unique())
+        location = st.multiselect("Location", options=df['Location'].dropna().unique())
 
     # Apply filters
     filtered_df = df.copy()
@@ -145,10 +134,34 @@ if uploaded_file is not None:
                 product_counts,
                 names='product',
                 values='Count',
-                title='Companies by product',
+                title='Companies by Product',
                 hole=0.3
             )
             st.plotly_chart(fig_pie, use_container_width=True)
+    
+        # Bar chart for Notable Partnerships by Business Area
+    if 'Partnerships' in filtered_df.columns and 'Business Area' in filtered_df.columns:
+        st.subheader("Notable Partnerships by Business Area")
+        partnership_df = filtered_df.dropna(subset=['Partnerships', 'Business Area'])
+        if not partnership_df.empty:
+            partnership_counts = (
+                partnership_df.groupby('Business Area')['Partnerships']
+                .count()
+                .reset_index()
+                .rename(columns={'Partnerships': 'Count'})
+                .sort_values('Count', ascending=False)
+            )
+            fig_partnerships = px.bar(
+                partnership_counts,
+                x='Business Area',
+                y='Count',
+                title='Number of Notable Partnerships by Business Area',
+                labels={'Count': 'Number of Partnerships'},
+                color='Business Area'
+            )
+            st.plotly_chart(fig_partnerships, use_container_width=True)
+        else:
+            st.info("No data available for Partnerships by Business Area.")
 
     # Optional ML Model
     st.subheader("Predict Market Cap (Simple Model)")
@@ -176,6 +189,7 @@ if uploaded_file is not None:
             st.write(f"Sample prediction result: ${y_pred[0]:,.0f}")
         else:
             st.warning("One or more required columns are missing for prediction.")
+
 
 
 
