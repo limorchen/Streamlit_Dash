@@ -105,7 +105,7 @@ if uploaded_file:
             st.plotly_chart(fig, use_container_width=True)
 
     if 'Business Area' in filtered_df.columns:
-        plot_chart("Company Count by Business Area", lambda: px.bar
+        
             ba_counts = (
                filtered_df['Business Area']
                .value_counts()
