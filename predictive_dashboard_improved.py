@@ -12,145 +12,123 @@ from sklearn.pipeline import Pipeline
 st.set_page_config(layout="wide", page_title="Company Insights Dashboard")
 st.title("Company Insights Dashboard")
 
-# File uploader
 uploaded_file = st.file_uploader("Upload your company data CSV", type=["csv"])
 
-# Function to parse market cap values
+# --- Utility Functions ---
 def parse_market_cap(value):
     try:
         value = str(value).strip().replace(",", "").replace("$", "")
         if pd.isna(value) or value.lower() == 'nan':
             return None
-        if value.startswith("<") or value.startswith(">"):
+        if value.startswith(("<", ">")):
             value = value[1:]
         if "M" in value:
             return float(value.replace("M", "")) * 1e6
         elif "B" in value:
             return float(value.replace("B", "")) * 1e9
-        else:
-            return float(value)
+        return float(value)
     except Exception as e:
         print(f"Could not parse market cap value: {value} — {e}")
         return None
 
-# Function to reduce category counts
 def reduce_categories(series, top_n=7, other_label="Other"):
-    counts = series.value_counts()
-    top_categories = counts.nlargest(top_n).index
+    top_categories = series.value_counts().nlargest(top_n).index
     return series.apply(lambda x: x if x in top_categories else other_label)
 
-if uploaded_file is not None:
+# --- Main App Logic ---
+if uploaded_file:
     df = pd.read_csv(uploaded_file)
-
-    # Strip column names
     df.columns = df.columns.str.strip()
 
-    # Parse Market Cap
     if 'Market Cap' in df.columns:
         df['Market Cap'] = df['Market Cap'].apply(parse_market_cap)
 
-    # Group and normalize similar rows except Company Name and Market Cap
-    cat_cols = [col for col in df.columns if col not in ['Company Name', 'Market Cap']]
-    if len(cat_cols) > 0:
-        grouped = (
+    exclude_cols = ['Company Name', 'Market Cap']
+    cat_cols = [col for col in df.columns if col not in exclude_cols]
+
+    if cat_cols:
+        df = (
             df.groupby(cat_cols, dropna=False)
-              .agg({
-                  'Company Name': lambda x: ', '.join(sorted(set(x.dropna()))),
-                  'Market Cap': 'mean'
-              })
+              .agg({'Company Name': lambda x: ', '.join(sorted(set(x.dropna()))),
+                    'Market Cap': 'mean'})
               .reset_index()
-        )
-        df = grouped[['Company Name', 'Market Cap'] + cat_cols]
+        )[['Company Name', 'Market Cap'] + cat_cols]
 
-        # Normalize Business Area names
-        business_area_map = {
-            'Exosome Therapy': 'Exosome-Based Therapy',
-            'Exosome Therapeutics': 'Exosome-Based Therapy',
-            'Extracellular Vesicles': 'Exosome-Based Therapy',
-            'Cell Therapy': 'Cell-Based Therapy',
-            'CAR-T Therapy': 'Cell-Based Therapy',
-            'Gene Therapy': 'Gene & Nucleic Acid Therapies',
-            'mRNA Therapeutics': 'Gene & Nucleic Acid Therapies',
-            'siRNA': 'Gene & Nucleic Acid Therapies',
-            'Rejuvenation': 'Longevity & Anti-aging',
-            'Longevity': 'Longevity & Anti-aging',
-        }
+    business_area_map = {
+        'Exosome Therapy': 'Exosome-Based Therapy',
+        'Exosome Therapeutics': 'Exosome-Based Therapy',
+        'Extracellular Vesicles': 'Exosome-Based Therapy',
+        'Cell Therapy': 'Cell-Based Therapy',
+        'CAR-T Therapy': 'Cell-Based Therapy',
+        'Gene Therapy': 'Gene & Nucleic Acid Therapies',
+        'mRNA Therapeutics': 'Gene & Nucleic Acid Therapies',
+        'siRNA': 'Gene & Nucleic Acid Therapies',
+        'Rejuvenation': 'Longevity & Anti-aging',
+        'Longevity': 'Longevity & Anti-aging',
+    }
 
-        if 'Business Area' in df.columns:
-            df['Business Area'] = df['Business Area'].replace(business_area_map)
+    if 'Business Area' in df.columns:
+        df['Business Area'] = df['Business Area'].replace(business_area_map)
 
-        # 🔽 Step: Reduce category counts across all other categorical columns
-        for col in df.columns:
-            if col not in ['Company Name', 'Market Cap'] and df[col].dtype == 'object':
-                df[col] = reduce_categories(df[col], top_n=5)
+    for col in cat_cols:
+        if df[col].dtype == 'object':
+            df[col] = reduce_categories(df[col], top_n=5)
 
-    # Show filtered data
     st.subheader("Filtered Data")
     st.dataframe(df)
 
-    # Sidebar Filters
+    # --- Filters ---
     with st.sidebar:
         st.header("Filters")
-        business_area = st.multiselect("Business Area", options=df['Business Area'].dropna().unique() if 'Business Area' in df.columns else [])
-        location = st.multiselect("Location", options=df['Location'].dropna().unique() if 'Location' in df.columns else [])
+        filters = {}
+        for col in ['Business Area', 'Location']:
+            if col in df.columns:
+                filters[col] = st.multiselect(col, options=df[col].dropna().unique())
 
-    # Apply filters
     filtered_df = df.copy()
-    if business_area:
-        filtered_df = filtered_df[filtered_df['Business Area'].isin(business_area)]
-    if location:
-        filtered_df = filtered_df[filtered_df['Location'].isin(location)]
+    for col, values in filters.items():
+        if values:
+            filtered_df = filtered_df[filtered_df[col].isin(values)]
 
-    # Metrics
+    # --- Metrics ---
     col1, col2 = st.columns(2)
     col1.metric("Total Companies", len(filtered_df))
     if 'Market Cap' in filtered_df.columns:
         avg_market_cap = filtered_df['Market Cap'].dropna().mean()
         col2.metric("Avg. Market Cap", f"${avg_market_cap:,.0f}")
 
-    # Charts
+    # --- Charts ---
+    def plot_chart(title, chart_func):
+        st.subheader(title)
+        fig = chart_func()
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+
     if 'Business Area' in filtered_df.columns:
-        st.subheader("Company Count by Business Area")
-        ba_counts = filtered_df['Business Area'].value_counts().reset_index()
-        ba_counts.columns = ['Business Area', 'Count']
-        fig1 = px.bar(ba_counts, x='Business Area', y='Count')
-        st.plotly_chart(fig1, use_container_width=True)
+        plot_chart("Company Count by Business Area", lambda: px.bar(
+            filtered_df['Business Area'].value_counts().reset_index(names=['Business Area', 'Count']),
+            x='Business Area', y='Count'))
 
-    if 'Location' in filtered_df.columns and 'Market Cap' in filtered_df.columns:
-        st.subheader("Market Cap by Location")
-        fig2 = px.box(filtered_df, x="Location", y="Market Cap")
-        st.plotly_chart(fig2, use_container_width=True)
+    if {'Location', 'Market Cap'}.issubset(filtered_df.columns):
+        plot_chart("Market Cap by Location", lambda: px.box(filtered_df, x="Location", y="Market Cap"))
 
-    if 'Stage of development' in filtered_df.columns and 'Market Cap' in filtered_df.columns:
-        st.subheader("Market Cap by Stage of Development")
-        fig3 = px.scatter(
+    if {'Stage of development', 'Market Cap'}.issubset(filtered_df.columns):
+        plot_chart("Market Cap by Stage of Development", lambda: px.scatter(
             filtered_df.dropna(subset=['Market Cap']),
             x="Stage of development",
             y="Market Cap",
             size="Market Cap",
             color="Stage of development",
-            hover_data=["Company Name"] if "Company Name" in df.columns else None
-        )
-        st.plotly_chart(fig3, use_container_width=True)
+            hover_data=["Company Name"] if "Company Name" in df.columns else None))
 
-    # Pie chart for Product
     if 'product' in filtered_df.columns:
-        st.subheader("Company Distribution by Product")
-        product_counts = filtered_df['product'].value_counts().reset_index()
-        product_counts.columns = ['product', 'Count']
-        if product_counts.empty:
-            st.write("No data available for product column.")
-        else:
-            fig_pie = px.pie(
-                product_counts,
-                names='product',
-                values='Count',
-                title='Companies by product',
-                hole=0.3
-            )
-            st.plotly_chart(fig_pie, use_container_width=True)
+        plot_chart("Company Distribution by Product", lambda: (
+            None if filtered_df['product'].dropna().empty else px.pie(
+                filtered_df['product'].value_counts().reset_index(names=['product', 'Count']),
+                names='product', values='Count', title='Companies by product', hole=0.3)
+        ))
 
-    # Optional ML Model
+    # --- Optional ML Model ---
     st.subheader("Predict Market Cap (Simple Model)")
     if 'Market Cap' in df.columns:
         model_df = df.dropna(subset=['Market Cap'])
@@ -159,13 +137,10 @@ if uploaded_file is not None:
             X = model_df[required_cols].fillna("Unknown")
             y = model_df['Market Cap']
 
-            encoder = ColumnTransformer(
-                transformers=[('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), X.columns)],
-                remainder='drop'
-            )
-
-            pipeline = Pipeline(steps=[
-                ('preprocessor', encoder),
+            pipeline = Pipeline([
+                ('preprocessor', ColumnTransformer(
+                    transformers=[('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), X.columns)]
+                )),
                 ('regressor', RandomForestRegressor(n_estimators=100, random_state=42))
             ])
 
@@ -176,8 +151,3 @@ if uploaded_file is not None:
             st.write(f"Sample prediction result: ${y_pred[0]:,.0f}")
         else:
             st.warning("One or more required columns are missing for prediction.")
-
-
-
-
-
