@@ -106,7 +106,12 @@ if uploaded_file:
 
     if 'Business Area' in filtered_df.columns:
         plot_chart("Company Count by Business Area", lambda: px.bar(
-            filtered_df['Business Area'].value_counts().reset_index(names=['Business Area', 'Count']),
+            ba_counts = (
+               filtered_df['Business Area']
+               .value_counts()
+               .reset_index()
+               .rename(columns={'index': 'Business Area', 'Business Area': 'Count'})
+            )
             x='Business Area', y='Count'))
 
     if {'Location', 'Market Cap'}.issubset(filtered_df.columns):
