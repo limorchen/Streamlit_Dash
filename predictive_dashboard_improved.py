@@ -105,14 +105,14 @@ if uploaded_file:
             st.plotly_chart(fig, use_container_width=True)
 
     if 'Business Area' in filtered_df.columns:
-        plot_chart("Company Count by Business Area", lambda: px.bar(
+        plot_chart("Company Count by Business Area", lambda: px.bar
             ba_counts = (
                filtered_df['Business Area']
                .value_counts()
                .reset_index()
                .rename(columns={'index': 'Business Area', 'Business Area': 'Count'})
             )
-            x='Business Area', y='Count'))
+            plot_chart("Company Count by Business Area", lambda: px.bar(ba_counts, x='Business Area', y='Count'))
 
     if {'Location', 'Market Cap'}.issubset(filtered_df.columns):
         plot_chart("Market Cap by Location", lambda: px.box(filtered_df, x="Location", y="Market Cap"))
