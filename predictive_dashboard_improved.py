@@ -105,14 +105,26 @@ if uploaded_file:
             st.plotly_chart(fig, use_container_width=True)
 
     if 'Business Area' in filtered_df.columns:
+        # Compute counts explicitly
+        vc = filtered_df['Business Area'].value_counts()
+        ba_counts = pd.DataFrame({
+             'Business Area': vc.index,
+             'Count': vc.values
+        })
+
+        # Optional: Debug output to check structure
+        st.write("Business Area counts DataFrame:", ba_counts.head())
+
+        # Plot with plot_chart helper or directly with st.plotly_chart
+        plot_chart("Company Count by Business Area", lambda: px.bar(ba_counts, x='Business Area', y='Count'))
+
+
+    # Optional: Debug output to check structure
+    st.write("Business Area counts DataFrame:", ba_counts.head())
+
+    # Plot with plot_chart helper or directly with st.plotly_chart
+    plot_chart("Company Count by Business Area", lambda: px.bar(ba_counts, x='Business Area', y='Count'))
         
-            ba_counts = (
-               filtered_df['Business Area']
-               .value_counts()
-               .reset_index()
-               .rename(columns={'index': 'Business Area', 'Business Area': 'Count'})
-            )
-            plot_chart("Company Count by Business Area", lambda: px.bar(ba_counts, x='Business Area', y='Count'))
 
     if {'Location', 'Market Cap'}.issubset(filtered_df.columns):
         plot_chart("Market Cap by Location", lambda: px.box(filtered_df, x="Location", y="Market Cap"))
