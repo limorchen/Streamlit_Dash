@@ -139,16 +139,25 @@ if uploaded_file:
                 key="marketcap_stage"
             )
 
-        if 'product' in filtered_df.columns:
-            plot_chart(
-                "Company Distribution by Product",
-                lambda: (
-                    None if filtered_df['product'].dropna().empty else px.pie(
-                        filtered_df['product'].value_counts().reset_index(names=['product', 'Count']),
-                        names='product', values='Count', title='Companies by product', hole=0.3)
-                ),
-                key="product_distribution"
+        def empty_pie_chart():
+            fig = px.pie(
+                names=['No data'],
+                values=[1],
+                title='No product data available'
             )
+            fig.update_traces(textinfo='none')  # Optional: hide labels
+            return fig
+
+        if 'product' in filtered_df.columns:
+           plot_chart(
+               "Company Distribution by Product",
+               lambda: px.pie(
+                   filtered_df['product'].value_counts().reset_index(names=['product', 'Count']),
+                   names='product', values='Count', title='Companies by product', hole=0.3
+               ) if not filtered_df['product'].dropna().empty else empty_pie_chart(),
+               key="product_distribution"
+           )
+
 
     # --- Optional ML Model ---
     st.subheader("Predict Market Cap (Simple Model)")
