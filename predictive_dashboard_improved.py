@@ -90,60 +90,65 @@ if uploaded_file:
         if values:
             filtered_df = filtered_df[filtered_df[col].isin(values)]
 
-    # --- Metrics ---
-    col1, col2 = st.columns(2)
-    col1.metric("Total Companies", len(filtered_df))
-    if 'Market Cap' in filtered_df.columns:
-        avg_market_cap = filtered_df['Market Cap'].dropna().mean()
-        col2.metric("Avg. Market Cap", f"${avg_market_cap:,.0f}")
+    if filtered_df.empty:
+        st.warning("No data matches the selected filters.")
+    else:
+        # --- Metrics ---
+        col1, col2 = st.columns(2)
+        col1.metric("Total Companies", len(filtered_df))
+        if 'Market Cap' in filtered_df.columns:
+            avg_market_cap = filtered_df['Market Cap'].dropna().mean()
+            col2.metric("Avg. Market Cap", f"${avg_market_cap:,.0f}")
 
-    # --- Charts ---
-    def plot_chart(title, chart_func):
-        st.subheader(title)
-        fig = chart_func()
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
+        # --- Charts ---
+        def plot_chart(title, chart_func, key=None):
+            st.subheader(title)
+            fig = chart_func()
+            st.plotly_chart(fig, use_container_width=True, key=key)
 
-    if 'Business Area' in filtered_df.columns:
-        # Compute counts explicitly
-        vc = filtered_df['Business Area'].value_counts()
-        ba_counts = pd.DataFrame({
-             'Business Area': vc.index,
-             'Count': vc.values
-        })
+        if 'Business Area' in filtered_df.columns:
+            vc = filtered_df['Business Area'].value_counts()
+            ba_counts = pd.DataFrame({
+                'Business Area': vc.index,
+                'Count': vc.values
+            })
+            st.write("Business Area counts DataFrame:", ba_counts.head())
+            plot_chart(
+                "Company Count by Business Area",
+                lambda: px.bar(ba_counts, x='Business Area', y='Count'),
+                key="business_area_chart"
+            )
 
-        # Optional: Debug output to check structure
-        st.write("Business Area counts DataFrame:", ba_counts.head())
+        if {'Location', 'Market Cap'}.issubset(filtered_df.columns):
+            plot_chart(
+                "Market Cap by Location",
+                lambda: px.box(filtered_df, x="Location", y="Market Cap"),
+                key="marketcap_location"
+            )
 
-        # Plot with plot_chart helper or directly with st.plotly_chart
-        plot_chart("Company Count by Business Area", lambda: px.bar(ba_counts, x='Business Area', y='Count'))
+        if {'Stage of development', 'Market Cap'}.issubset(filtered_df.columns):
+            plot_chart(
+                "Market Cap by Stage of Development",
+                lambda: px.scatter(
+                    filtered_df.dropna(subset=['Market Cap']),
+                    x="Stage of development",
+                    y="Market Cap",
+                    size="Market Cap",
+                    color="Stage of development",
+                    hover_data=["Company Name"] if "Company Name" in df.columns else None),
+                key="marketcap_stage"
+            )
 
-
-    # Optional: Debug output to check structure
-    st.write("Business Area counts DataFrame:", ba_counts.head())
-
-    # Plot with plot_chart helper or directly with st.plotly_chart
-    plot_chart("Company Count by Business Area", lambda: px.bar(ba_counts, x='Business Area', y='Count'))
-        
-
-    if {'Location', 'Market Cap'}.issubset(filtered_df.columns):
-        plot_chart("Market Cap by Location", lambda: px.box(filtered_df, x="Location", y="Market Cap"))
-
-    if {'Stage of development', 'Market Cap'}.issubset(filtered_df.columns):
-        plot_chart("Market Cap by Stage of Development", lambda: px.scatter(
-            filtered_df.dropna(subset=['Market Cap']),
-            x="Stage of development",
-            y="Market Cap",
-            size="Market Cap",
-            color="Stage of development",
-            hover_data=["Company Name"] if "Company Name" in df.columns else None))
-
-    if 'product' in filtered_df.columns:
-        plot_chart("Company Distribution by Product", lambda: (
-            None if filtered_df['product'].dropna().empty else px.pie(
-                filtered_df['product'].value_counts().reset_index(names=['product', 'Count']),
-                names='product', values='Count', title='Companies by product', hole=0.3)
-        ))
+        if 'product' in filtered_df.columns:
+            plot_chart(
+                "Company Distribution by Product",
+                lambda: (
+                    None if filtered_df['product'].dropna().empty else px.pie(
+                        filtered_df['product'].value_counts().reset_index(names=['product', 'Count']),
+                        names='product', values='Count', title='Companies by product', hole=0.3)
+                ),
+                key="product_distribution"
+            )
 
     # --- Optional ML Model ---
     st.subheader("Predict Market Cap (Simple Model)")
@@ -167,4 +172,4 @@ if uploaded_file:
 
             st.write(f"Sample prediction result: ${y_pred[0]:,.0f}")
         else:
-            st.warning("One or more required columns are missing for prediction.")
+            st.error("One or more required columns are missing for prediction.")
