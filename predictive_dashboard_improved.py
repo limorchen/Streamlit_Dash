@@ -194,6 +194,8 @@ if uploaded_file:
         if 'Business Area' in filtered_df.columns and 'Parsed Partnerships' in filtered_df.columns:
             st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
             df_exploded = filtered_df.explode('Parsed Partnerships').dropna(subset=['Parsed Partnerships'])
+            st.write("Exploded Data Preview:")
+            st.dataframe(df_exploded.head())
             heatmap_data = pd.crosstab(
                 df_exploded['Business Area'],
                 df_exploded['Parsed Partnerships'],
@@ -232,3 +234,4 @@ if uploaded_file:
             st.write(f"Sample prediction result: ${y_pred[0]:,.0f}")
         else:
             st.error("One or more required columns are missing for prediction.")
+
