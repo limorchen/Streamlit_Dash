@@ -61,6 +61,23 @@ if uploaded_file:
     partnership_column = "Notable Partnerships/Deals"
     if partnership_column in df.columns:
         df['Parsed Partnerships'] = df[partnership_column].apply(parse_partnerships)
+        df['Has Partnerships'] = df['Parsed Partnerships'].apply(has_partnerships)
+        df['Partnership Count'] = df['Parsed Partnerships'].apply(len)
+
+    exclude_cols = ['Company Name', 'Market Cap']
+    exclude_from_groupby = exclude_cols + ['Parsed Partnerships', 'Partnership Count', 'Has Partnerships']
+    cat_cols = [col for col in df.columns if col not in exclude_from_groupby]
+
+    if cat_cols:
+        agg_dict = {
+            'Company Name': lambda x: ', '.join(sorted(set(x.dropna()))),
+            'Market Cap': 'mean'
+        }
+        if 'Partnership Count' in df.columns:
+            agg_dict['Partnership Count'] = 'mean'
+        if 'Has Partnerships' in df.columns:
+            agg_dict['Has Partnerships'] = 'mean'
+        df = df.groupby(cat_cols, dropna=False).agg(agg_dict).reset_index()
 
     business_area_map = {
         'Exosome Therapy': 'Exosome-Based Therapy',
@@ -77,6 +94,10 @@ if uploaded_file:
 
     if 'Business Area' in df.columns:
         df['Business Area'] = df['Business Area'].replace(business_area_map)
+
+    for col in cat_cols:
+        if df[col].dtype == 'object':
+            df[col] = reduce_categories(df[col], top_n=5)
 
     st.subheader("Filtered Data")
     st.dataframe(df)
@@ -97,31 +118,81 @@ if uploaded_file:
     if filtered_df.empty:
         st.warning("No data matches the selected filters.")
     else:
-        st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
-        df_exploded = filtered_df.explode('Parsed Partnerships')
-        df_exploded = df_exploded.dropna(subset=['Parsed Partnerships'])
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Companies", len(filtered_df))
+        if 'Market Cap' in filtered_df.columns:
+            avg_market_cap = filtered_df['Market Cap'].dropna().mean()
+            col2.metric("Avg. Market Cap", f"${avg_market_cap:,.0f}")
+        if 'Has Partnerships' in filtered_df.columns:
+            partnership_ratio = filtered_df['Has Partnerships'].mean() * 100
+            col3.metric("% with Partnerships", f"{partnership_ratio:.1f}%")
 
-        heatmap_data = pd.crosstab(
-            df_exploded['Business Area'],
-            df_exploded['Parsed Partnerships'],
-            normalize='index'
-        ) * 100
+        def plot_chart(title, chart_func, key=None):
+            st.subheader(title)
+            fig = chart_func()
+            st.plotly_chart(fig, use_container_width=True, key=key)
 
-        fig = px.imshow(
-            heatmap_data,
-            labels=dict(x="Partnership", y="Business Area", color="Percentage (%)"),
-            color_continuous_scale='YlGnBu',
-            title='Partnership Types by Business Area (%)'
-        )
-        fig.update_layout(height=500)
-        st.plotly_chart(fig, use_container_width=True)
+        if {'Location', 'Market Cap'}.issubset(filtered_df.columns):
+            plot_chart(
+                "Market Cap by Location",
+                lambda: px.box(filtered_df, x="Location", y="Market Cap"),
+                key="marketcap_location"
+            )
 
-    # --- Optional ML Model ---
+        if {'Stage of development', 'Market Cap'}.issubset(filtered_df.columns):
+            plot_chart(
+                "Market Cap by Stage of Development",
+                lambda: px.scatter(
+                    filtered_df.dropna(subset=['Market Cap']),
+                    x="Stage of development",
+                    y="Market Cap",
+                    size="Market Cap",
+                    color="Stage of development",
+                    hover_data=["Company Name"] if "Company Name" in df.columns else None),
+                key="marketcap_stage"
+            )
+
+        if 'Has Partnerships' in filtered_df.columns and 'Market Cap' in filtered_df.columns:
+            plot_chart(
+                "Partnership Impact on Market Cap",
+                lambda: px.box(
+                    filtered_df.dropna(subset=['Market Cap']),
+                    x="Has Partnerships",
+                    y="Market Cap",
+                    color="Has Partnerships",
+                    labels={
+                        "Has Partnerships": "Has Notable Partnerships",
+                        "Market Cap": "Market Cap ($)"
+                    },
+                    title="Market Cap Comparison: Companies With vs. Without Partnerships"
+                ),
+                key="partnership_impact"
+            )
+
+        # --- NEW: Heatmap of Business Area Type vs. Notable Partnerships ---
+        if 'Business Area' in filtered_df.columns and 'Parsed Partnerships' in filtered_df.columns:
+            st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
+            df_exploded = filtered_df.explode('Parsed Partnerships').dropna(subset=['Parsed Partnerships'])
+            heatmap_data = pd.crosstab(
+                df_exploded['Business Area'],
+                df_exploded['Parsed Partnerships'],
+                normalize='index'
+            ) * 100
+            fig = px.imshow(
+                heatmap_data,
+                labels=dict(x="Partnership", y="Business Area", color="Percentage (%)"),
+                color_continuous_scale='YlGnBu',
+                title='Partnership Types by Business Area (%)'
+            )
+            fig.update_layout(height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
     st.subheader("Predict Market Cap (Simple Model)")
     if 'Market Cap' in df.columns:
         model_df = df.dropna(subset=['Market Cap'])
-
         required_cols = ['Business Area', 'Cell type (source/target)', 'Stage of development', 'Location']
+        if 'Has Partnerships' in model_df.columns:
+            required_cols.append('Has Partnerships')
         if all(col in model_df.columns for col in required_cols):
             X = model_df[required_cols].copy()
             for col in X.columns:
@@ -129,18 +200,14 @@ if uploaded_file:
                     X[col] = X[col].astype(str)
             X = X.fillna("Unknown")
             y = model_df['Market Cap']
-
             pipeline = Pipeline([
                 ('preprocessor', ColumnTransformer(
-                    transformers=[('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), X.columns)]
-                )),
+                    transformers=[('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), X.columns)])),
                 ('regressor', RandomForestRegressor(n_estimators=100, random_state=42))
             ])
-
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
             pipeline.fit(X_train, y_train)
             y_pred = pipeline.predict(X_test)
-
             st.write(f"Sample prediction result: ${y_pred[0]:,.0f}")
         else:
             st.error("One or more required columns are missing for prediction.")
