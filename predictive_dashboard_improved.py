@@ -50,6 +50,15 @@ def parse_partnerships(partnership_str):
 def has_partnerships(partnership_list):
     return len(partnership_list) > 0
 
+def empty_pie_chart():
+    fig = px.pie(
+        names=['No data'],
+        values=[1],
+        title='No product data available'
+    )
+    fig.update_traces(textinfo='none')
+    return fig
+
 # --- Main App Logic ---
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
@@ -169,7 +178,19 @@ if uploaded_file:
                 key="partnership_impact"
             )
 
-        # --- NEW: Heatmap of Business Area Type vs. Notable Partnerships ---
+        if 'product' in filtered_df.columns:
+            product_counts = filtered_df['product'].value_counts().reset_index()
+            product_counts.columns = ['product', 'Count']
+
+            plot_chart(
+                "Company Distribution by Product",
+                lambda: px.pie(
+                    product_counts,
+                    names='product', values='Count', title='Companies by product', hole=0.3
+                ) if not filtered_df['product'].dropna().empty else empty_pie_chart(),
+                key="product_distribution"
+            )
+
         if 'Business Area' in filtered_df.columns and 'Parsed Partnerships' in filtered_df.columns:
             st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
             df_exploded = filtered_df.explode('Parsed Partnerships').dropna(subset=['Parsed Partnerships'])
