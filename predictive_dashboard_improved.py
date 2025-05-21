@@ -192,23 +192,33 @@ if uploaded_file:
             )
 
         if 'Business Area' in filtered_df.columns and 'Parsed Partnerships' in filtered_df.columns:
-            st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
-            df_exploded = filtered_df.explode('Parsed Partnerships').dropna(subset=['Parsed Partnerships'])
-            st.write("Exploded Data Preview:")
-            st.dataframe(df_exploded.head())
-            heatmap_data = pd.crosstab(
-                df_exploded['Business Area'],
-                df_exploded['Parsed Partnerships'],
-                normalize='index'
-            ) * 100
-            fig = px.imshow(
-                heatmap_data,
-                labels=dict(x="Partnership", y="Business Area", color="Percentage (%)"),
-                color_continuous_scale='YlGnBu',
-                title='Partnership Types by Business Area (%)'
-            )
-            fig.update_layout(height=500)
-            st.plotly_chart(fig, use_container_width=True)
+    st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
+    df_exploded = filtered_df.explode('Parsed Partnerships').dropna(subset=['Parsed Partnerships'])
+
+    st.write("Parsed Partnerships sample:")
+    st.dataframe(df[['Business Area', 'Parsed Partnerships']].head(10))
+    st.write("Exploded dataframe shape:", df_exploded.shape)
+
+    if not df_exploded.empty:
+        st.write("Exploded Data Preview:")
+        st.dataframe(df_exploded.head())
+
+        heatmap_data = pd.crosstab(
+            df_exploded['Business Area'],
+            df_exploded['Parsed Partnerships'],
+            normalize='index'
+        ) * 100
+
+        fig = px.imshow(
+            heatmap_data,
+            labels=dict(x="Partnership", y="Business Area", color="Percentage (%)"),
+            color_continuous_scale='YlGnBu',
+            title='Distribution of Notable Partnerships Across Business Areas (%)'
+        )
+        fig.update_layout(height=500)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No data available to display the Business Area vs. Partnership heatmap.")
 
     st.subheader("Predict Market Cap (Simple Model)")
     if 'Market Cap' in df.columns:
