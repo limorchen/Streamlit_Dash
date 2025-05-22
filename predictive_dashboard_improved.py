@@ -71,6 +71,10 @@ def parse_partnerships(partnership_str):
         partners = [partnership_str.strip()]
     return partners
 
+st.write("Parsed column sample:")
+st.dataframe(df[['Notable Partnerships/Deals', 'Parsed Partnerships']].head(10))
+
+
 def has_partnerships(partnership_list):
     """Checks if a list of partnerships is not empty."""
     return len(partnership_list) > 0
@@ -245,6 +249,8 @@ if uploaded_file:
             st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
             # Explode the 'Parsed Partnerships' list into separate rows, then drop NaNs
             df_exploded = filtered_df.explode('Parsed Partnerships').dropna(subset=['Parsed Partnerships'])
+            st.write("Exploded shape:", df_exploded.shape)
+            st.dataframe(df_exploded.head())
 
             # Only display heatmap if there is data after exploding and dropping NaNs
             if not df_exploded.empty:
