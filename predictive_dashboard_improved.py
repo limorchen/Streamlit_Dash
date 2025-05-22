@@ -13,7 +13,6 @@ st.set_page_config(layout="wide", page_title="Company Insights Dashboard")
 st.title("Company Insights Dashboard")
 
 uploaded_file = st.file_uploader("Upload your company data CSV", type=["csv"])
-st.write("Columns in uploaded file:", df.columns.tolist())
 
 # --- Utility Functions ---
 def parse_market_cap(value):
@@ -193,40 +192,46 @@ if uploaded_file:
             )
 
         if 'Business Area' in df.columns and 'Parsed Partnerships' in df.columns:
-            st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
+    st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
 
-            # Split comma-separated Business Areas into lists and clean whitespace
-            df['Business Area'] = df['Business Area'].str.split(',')
-            df['Business Area'] = df['Business Area'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else x)
+    # Confirm column presence and preview contents
+    st.write("📊 Columns in DataFrame:", df.columns.tolist())
+    st.write("📌 Sample Business Area values:", df['Business Area'].dropna().head(5).tolist())
+    st.write("📌 Sample Partnerships:", df['Parsed Partnerships'].dropna().head(5).tolist())
 
-            # Explode Business Areas and Partnerships into separate rows
-            df_exploded = df.explode('Business Area')
-            df_exploded = df_exploded.explode('Parsed Partnerships').dropna(subset=['Parsed Partnerships', 'Business Area'])
+    # Clean and split comma-separated Business Areas into lists
+    df['Business Area'] = df['Business Area'].astype(str).str.split(',')
+    df['Business Area'] = df['Business Area'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
 
-            # Preview parsed and exploded data
-            st.write("Parsed column sample:")
-            st.dataframe(df[['Notable Partnerships/Deals', 'Parsed Partnerships']].head(10))
-            st.write("Exploded shape:", df_exploded.shape)
-            st.dataframe(df_exploded.head())
+    # Explode Business Area and Parsed Partnerships into separate rows
+    df_exploded = df.explode('Business Area')
+    df_exploded = df_exploded.explode('Parsed Partnerships').dropna(subset=['Parsed Partnerships', 'Business Area'])
 
-            if not df_exploded.empty:
-                heatmap_data = pd.crosstab(
-                    df_exploded['Business Area'],
-                    df_exploded['Parsed Partnerships'],
-                    normalize='index'
-                ) * 100
+    # Show preview of exploded data
+    st.write("📎 Exploded Data Preview:")
+    st.dataframe(df_exploded.head())
 
-                fig = px.imshow(
-                    heatmap_data,
-                    labels=dict(x="Partnership Type", y="Business Area", color="Percentage (%)"),
-                    color_continuous_scale='YlGnBu',
-                    title='Distribution of Notable Partnerships Across Business Areas (%)'
-                )
-                fig.update_layout(height=500)
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("No data available to display the Business Area vs. Partnership heatmap.")
+    if not df_exploded.empty:
+        # Create normalized crosstab for heatmap
+        heatmap_data = pd.crosstab(
+            df_exploded['Business Area'],
+            df_exploded['Parsed Partnerships'],
+            normalize='index'
+        ) * 100
 
+        fig = px.imshow(
+            heatmap_data,
+            labels=dict(x="Partnership Type", y="Business Area", color="Percentage (%)"),
+            color_continuous_scale='YlGnBu',
+            title='Distribution of Notable Partnerships Across Business Areas (%)'
+        )
+        fig.update_layout(height=500)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No data available to display the Business Area vs. Partnership heatmap.")
+else:
+    st.warning("Missing required columns: 'Business Area' and/or 'Parsed Partnerships'. Please check your CSV.")
+        st.info("No data available to display the Business Area vs. Partnership heatmap.")
 
     st.subheader("Predict Market Cap (Simple Model)")
     if 'Market Cap' in df.columns:
@@ -252,6 +257,7 @@ if uploaded_file:
             st.write(f"Sample prediction result: ${y_pred[0]:,.0f}")
         else:
             st.error("One or more required columns are missing for prediction.")
+
 
 
 
