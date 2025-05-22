@@ -192,7 +192,7 @@ if uploaded_file:
             )
 
         if 'Business Area' in filtered_df.columns and 'Parsed Partnerships' in filtered_df.columns:
-    st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
+           st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
 
     # Split comma-separated Business Areas into lists and clean whitespace
     df['Business Area'] = df['Business Area'].str.split(',')
