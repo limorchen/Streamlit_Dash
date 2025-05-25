@@ -154,37 +154,64 @@ if uploaded_file:
                 key="product_distribution"
             )
 
-    # --- Heatmap: Business Area vs. Notable Partnerships ---
-    if 'Business Area' in df.columns and 'Parsed Partnerships' in df.columns:
-        st.subheader("Heatmap: Business Area vs. Notable Partnerships")
+        # --- Heatmap: Business Area vs. Notable Partnerships ---
+        if 'Business Area' in df.columns and 'Parsed Partnerships' in df.columns:
+            st.subheader("Heatmap: Business Area vs. Notable Partnerships")
 
-        df_heatmap = df.copy()
-        df_heatmap['Business Area'] = df_heatmap['Business Area'].astype(str).str.split(',')
-        df_heatmap['Business Area'] = df_heatmap['Business Area'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
+            df_heatmap = df.copy()
+            df_heatmap['Business Area'] = df_heatmap['Business Area'].astype(str).str.split(',')
+            df_heatmap['Business Area'] = df_heatmap['Business Area'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
 
-        df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].astype(str).str.split(',')
-        df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
+            df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].astype(str).str.split(',')
+            df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
 
-        df_exploded = df_heatmap.explode('Business Area').explode('Parsed Partnerships')
-        df_exploded = df_exploded.dropna(subset=['Business Area', 'Parsed Partnerships'])
+            df_exploded = df_heatmap.explode('Business Area').explode('Parsed Partnerships')
+            df_exploded = df_exploded.dropna(subset=['Business Area', 'Parsed Partnerships'])
 
-        if not df_exploded.empty:
-            heatmap_data = pd.crosstab(
-                df_exploded['Business Area'],
-                df_exploded['Parsed Partnerships'],
-                normalize='index'
-            ) * 100
+            if not df_exploded.empty:
+                heatmap_data = pd.crosstab(
+                    df_exploded['Business Area'],
+                    df_exploded['Parsed Partnerships'],
+                    normalize='index'
+                ) * 100
 
-            fig = px.imshow(
-                heatmap_data,
-                labels=dict(x="Partnership Type", y="Business Area", color="Percentage (%)"),
-                color_continuous_scale='YlGnBu',
-                title='Distribution of Notable Partnerships Across Business Areas (%)'
-            )
-            fig.update_layout(height=500)
-            st.plotly_chart(fig, use_container_width=True)
+                fig = px.imshow(
+                    heatmap_data,
+                    labels=dict(x="Partnership Type", y="Business Area", color="Percentage (%)"),
+                    color_continuous_scale='YlGnBu',
+                    title='Distribution of Notable Partnerships Across Business Areas (%)'
+                )
+                fig.update_layout(height=500)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No data available to display the Business Area vs. Partnership heatmap.")
+
+        # --- Predict Market Cap ---
+        st.subheader("Predict Market Cap (Simple Model)")
+
+        # Prepare dataset: only numeric columns and drop NA
+        model_df = df.select_dtypes(include=[np.number]).dropna()
+
+        if 'Market Cap' in model_df.columns and len(model_df) >= 10:
+            X = model_df.drop(columns=['Market Cap'])
+            y = model_df['Market Cap']
+
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+            model = RandomForestRegressor(n_estimators=100, random_state=42)
+            model.fit(X_train, y_train)
+
+            st.markdown("### Predict Market Cap from Numerical Features")
+            user_inputs = {}
+            for feature in X.columns:
+                min_val, max_val = float(X[feature].min()), float(X[feature].max())
+                mean_val = float(X[feature].mean())
+                user_inputs[feature] = st.number_input(f"{feature}", min_value=min_val, max_value=max_val, value=mean_val)
+
+            input_df = pd.DataFrame([user_inputs])
+            prediction = model.predict(input_df)[0]
+            st.success(f"Predicted Market Cap: ${prediction:,.0f}")
         else:
-            st.info("No data available to display the Business Area vs. Partnership heatmap.")
+            st.warning("Not enough numeric data with 'Market Cap' to train a prediction model.")
 
 
 
