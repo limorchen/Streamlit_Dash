@@ -49,9 +49,9 @@ if uploaded_file:
     if 'Notable Partnerships/Deals' in df.columns:
         df['Parsed Partnerships'] = df['Notable Partnerships/Deals'].apply(parse_partnerships)
         df['Has Partnerships'] = df['Parsed Partnerships'].apply(has_partnerships)
-        df['Partnership Count'] = df['Parsed Partnerships'].apply(len)
+        # Removed 'Partnership Count' calculation
 
-    exclude_cols = ['Company Name', 'Market Cap', 'Parsed Partnerships', 'Partnership Count', 'Has Partnerships']
+    exclude_cols = ['Company Name', 'Market Cap', 'Parsed Partnerships', 'Has Partnerships'] # Removed 'Partnership Count' from exclude
     cat_cols = [col for col in df.columns if col not in exclude_cols and df[col].dtype == 'object']
 
     business_area_map = {
@@ -193,7 +193,7 @@ if uploaded_file:
 
         if 'Market Cap' in model_df_full.columns and len(model_df_full) >= 10:
             # Select features for the model
-            features = ['Partnership Count']
+            features = [] # Removed 'Partnership Count'
             categorical_features = ['Business Area', 'product', 'Location', 'vertical', 'Stage of development']
             all_available_categorical = [col for col in categorical_features if col in model_df_full.columns]
             features.extend(all_available_categorical)
@@ -211,17 +211,8 @@ if uploaded_file:
                 model_full = RandomForestRegressor(n_estimators=100, random_state=42)
                 model_full.fit(X_train, y_train)
 
-                st.markdown("### Predict Market Cap from Numerical and Categorical Features")
+                st.markdown("### Predict Market Cap from Categorical Features") # Updated title
                 user_inputs_full = {}
-
-                # Numerical features
-                if 'Partnership Count' in X.columns:
-                    min_pc = float(X['Partnership Count'].min())
-                    max_pc = float(X['Partnership Count'].max())
-                    mean_pc = float(X['Partnership Count'].mean())
-                    user_inputs_full['Partnership Count'] = st.number_input("Partnership Count", min_value=min_pc, max_value=max_pc, value=mean_pc, key="partnership_count_full")
-                else:
-                    st.info("Partnership Count not available for prediction input.")
 
                 # Categorical features
                 for cat_col in all_available_categorical:
@@ -230,7 +221,7 @@ if uploaded_file:
                     user_inputs_full[cat_col] = selected_value
 
                 # Prepare input DataFrame for prediction
-                input_data = {'Partnership Count': [user_inputs_full.get('Partnership Count', 0)]}
+                input_data = {} # Removed 'Partnership Count'
                 for cat_col in all_available_categorical:
                     input_data[cat_col] = [user_inputs_full.get(cat_col, None)]
                 input_df_full = pd.DataFrame(input_data)
@@ -245,7 +236,7 @@ if uploaded_file:
                 input_df_encoded = input_df_encoded[X.columns]
 
                 prediction_full = model_full.predict(input_df_encoded)[0]
-                st.success(f"Predicted Market Cap (with more features): ${prediction_full:,.0f}")
+                st.success(f"Predicted Market Cap (from categorical features): ${prediction_full:,.0f}") # Updated success message
 
             else:
                 st.warning("Not enough data with selected features and 'Market Cap' to train the model.")
@@ -253,20 +244,24 @@ if uploaded_file:
         else:
             st.warning("Not enough data with 'Market Cap' to train a prediction model with more features.")
 
-        # --- Previous Simple Market Cap Prediction ---
+        # --- Previous Simple Market Cap Prediction (Numerical Only) ---
         st.subheader("Predict Market Cap (Simple Model - Numerical Only)")
         # Prepare dataset: only numeric columns and drop NA
         model_df_numeric = df.select_dtypes(include=[np.number]).dropna()
 
         if 'Market Cap' in model_df_numeric.columns and len(model_df_numeric) >= 10:
-            X_numeric = model_df_numeric.drop(columns=['Market Cap'])
+            # Remove 'Partnership Count' if it's numeric
+            if 'Partnership Count' in model_df_numeric.columns:
+                X_numeric = model_df_numeric.drop(columns=['Market Cap', 'Partnership Count'], errors='ignore')
+            else:
+                X_numeric = model_df_numeric.drop(columns=['Market Cap'])
             y_numeric = model_df_numeric['Market Cap']
 
             X_train_numeric, X_test_numeric, y_train_numeric, y_test_numeric = train_test_split(X_numeric, y_numeric, test_size=0.2, random_state=42)
             model_numeric = RandomForestRegressor(n_estimators=100, random_state=42)
             model_numeric.fit(X_train_numeric, y_train_numeric)
 
-            st.markdown("### Predict Market Cap from Numerical Features")
+            st.markdown("### Predict Market Cap from Numerical Features (Excluding Partnership Count)") # Updated title
             user_inputs_numeric = {}
             for feature in X_numeric.columns:
                 min_val, max_val = float(X_numeric[feature].min()), float(X_numeric[feature].max())
