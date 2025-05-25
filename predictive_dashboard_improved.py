@@ -1,3 +1,4 @@
+import streamlit as st  # ✅ Add this line
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -301,29 +302,54 @@ if uploaded_file:
                 X = X.fillna("Unknown") # Fill any remaining NaNs with 'Unknown'
                 y = model_df['Market Cap']
 
-                # Create a pipeline with OneHotEncoder and RandomForestRegressor
-                pipeline = Pipeline([
-                    ('preprocessor', ColumnTransformer(
-                        transformers=[('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), X.columns)])),
-                    ('regressor', RandomForestRegressor(n_estimators=100, random_state=42))
+                # Identify categorical columns (all in this case)
+                categorical_features = X.select_dtypes(include=['object', 'bool']).columns.tolist()
+
+                # Define a column transformer for one-hot encoding
+                preprocessor = ColumnTransformer(
+                    transformers=[
+                        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
+                    ],
+                    remainder='passthrough'  # Keep any numeric features as-is
+                )
+
+                # Define a pipeline with preprocessing and model
+                pipeline = Pipeline(steps=[
+                    ('preprocessor', preprocessor),
+                    ('model', RandomForestRegressor(n_estimators=100, random_state=42))
                 ])
 
-                # Split data into training and testing sets
+                # Train-test split
                 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-                pipeline.fit(X_train, y_train) # Train the model
-                y_pred = pipeline.predict(X_test) # Make predictions
 
-                # Display a sample prediction result
-                st.write(f"Sample prediction result: ${y_pred[0]:,.0f}")
+                # Fit the pipeline
+                pipeline.fit(X_train, y_train)
+
+                # Model performance
+                score = pipeline.score(X_test, y_test)
+
+                st.success(f"Model R² Score: {score:.2f}")
+
+                st.markdown("### Try the Market Cap Prediction")
+                user_input = {}
+                for col in required_cols:
+                    options = sorted(model_df[col].dropna().unique())
+                    user_input[col] = st.selectbox(f"Select {col}", options)
+
+                # Convert user input to a DataFrame
+                input_df = pd.DataFrame([user_input])
+
+               # Ensure input_df types match training preprocessing
+                for col in input_df.columns:
+                  if input_df[col].dtype != 'object':
+                     input_df[col] = input_df[col].astype(str)
+                     input_df = input_df.fillna("Unknown")
+                     
+                # Predict market cap
+                predicted_cap = pipeline.predict(input_df)[0]
+                st.metric("Predicted Market Cap", f"${predicted_cap:,.0f}")
             else:
-                st.error("One or more required columns are missing for prediction.")
-        else:
-            st.info("Market Cap column not found in the uploaded data, cannot train prediction model.")
-else:
-    st.warning("Please upload a CSV file to begin.")
-
-
-
+                st.warning("Some required columns are missing for the prediction model.")
 
 
 
