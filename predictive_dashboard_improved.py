@@ -154,62 +154,96 @@ if uploaded_file:
                 key="product_distribution"
             )
 
-        # --- Heatmap: Business Area vs. Notable Partnerships ---
-        if 'Business Area' in df.columns and 'Parsed Partnerships' in df.columns:
-            st.subheader("Heatmap: Business Area vs. Notable Partnerships")
+        # --- Predict Market Cap (More Comprehensive Model) ---
+        st.subheader("Predict Market Cap (Including Categorical Features)")
 
-            df_heatmap = df.copy()
-            df_heatmap['Business Area'] = df_heatmap['Business Area'].astype(str).str.split(',')
-            df_heatmap['Business Area'] = df_heatmap['Business Area'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
+        model_df_full = df.copy().dropna(subset=['Market Cap'])
 
-            df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].astype(str).str.split(',')
-            df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
+        if 'Market Cap' in model_df_full.columns and len(model_df_full) >= 10:
+            # Select features for the model
+            features = ['Partnership Count']
+            categorical_features = ['Business Area', 'product', 'Location', 'vertical', 'Stage of development']
+            all_available_categorical = [col for col in categorical_features if col in model_df_full.columns]
+            features.extend(all_available_categorical)
 
-            df_exploded = df_heatmap.explode('Business Area').explode('Parsed Partnerships')
-            df_exploded = df_exploded.dropna(subset=['Business Area', 'Parsed Partnerships'])
+            model_df_prepared = model_df_full[features + ['Market Cap']].dropna()
 
-            if not df_exploded.empty:
-                heatmap_data = pd.crosstab(
-                    df_exploded['Business Area'],
-                    df_exploded['Parsed Partnerships'],
-                    normalize='index'
-                ) * 100
+            if not model_df_prepared.empty:
+                # One-hot encode categorical features
+                model_df_encoded = pd.get_dummies(model_df_prepared, columns=all_available_categorical, dummy_na=False)
 
-                fig = px.imshow(
-                    heatmap_data,
-                    labels=dict(x="Partnership Type", y="Business Area", color="Percentage (%)"),
-                    color_continuous_scale='YlGnBu',
-                    title='Distribution of Notable Partnerships Across Business Areas (%)'
-                )
-                fig.update_layout(height=500)
-                st.plotly_chart(fig, use_container_width=True)
+                X = model_df_encoded.drop(columns=['Market Cap'])
+                y = model_df_encoded['Market Cap']
+
+                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+                model_full = RandomForestRegressor(n_estimators=100, random_state=42)
+                model_full.fit(X_train, y_train)
+
+                st.markdown("### Predict Market Cap from Numerical and Categorical Features")
+                user_inputs_full = {}
+
+                # Numerical features
+                if 'Partnership Count' in X.columns:
+                    min_pc = float(X['Partnership Count'].min())
+                    max_pc = float(X['Partnership Count'].max())
+                    mean_pc = float(X['Partnership Count'].mean())
+                    user_inputs_full['Partnership Count'] = st.number_input("Partnership Count", min_value=min_pc, max_value=max_pc, value=mean_pc)
+                else:
+                    st.info("Partnership Count not available for prediction input.")
+
+                # Categorical features
+                for cat_col in all_available_categorical:
+                    unique_values = model_df_full[cat_col].dropna().unique()
+                    selected_value = st.selectbox(f"Select {cat_col}", options=unique_values)
+                    user_inputs_full[cat_col] = selected_value
+
+                # Prepare input DataFrame for prediction
+                input_data = {'Partnership Count': [user_inputs_full.get('Partnership Count', 0)]}
+                for cat_col in all_available_categorical:
+                    input_data[cat_col] = [user_inputs_full.get(cat_col, None)]
+                input_df_full = pd.DataFrame(input_data)
+
+                # One-hot encode the input
+                input_df_encoded = pd.get_dummies(input_df_full, columns=all_available_categorical, dummy_na=False)
+
+                # Ensure the input has the same columns as the training data
+                missing_cols = set(X.columns) - set(input_df_encoded.columns)
+                for c in missing_cols:
+                    input_df_encoded[c] = 0
+                input_df_encoded = input_df_encoded[X.columns]
+
+                prediction_full = model_full.predict(input_df_encoded)[0]
+                st.success(f"Predicted Market Cap (with more features): ${prediction_full:,.0f}")
+
             else:
-                st.info("No data available to display the Business Area vs. Partnership heatmap.")
+                st.warning("Not enough data with selected features and 'Market Cap' to train the model.")
 
-        # --- Predict Market Cap ---
-        st.subheader("Predict Market Cap (Simple Model)")
+        else:
+            st.warning("Not enough data with 'Market Cap' to train a prediction model with more features.")
 
+        # --- Previous Simple Market Cap Prediction ---
+        st.subheader("Predict Market Cap (Simple Model - Numerical Only)")
         # Prepare dataset: only numeric columns and drop NA
-        model_df = df.select_dtypes(include=[np.number]).dropna()
+        model_df_numeric = df.select_dtypes(include=[np.number]).dropna()
 
-        if 'Market Cap' in model_df.columns and len(model_df) >= 10:
-            X = model_df.drop(columns=['Market Cap'])
-            y = model_df['Market Cap']
+        if 'Market Cap' in model_df_numeric.columns and len(model_df_numeric) >= 10:
+            X_numeric = model_df_numeric.drop(columns=['Market Cap'])
+            y_numeric = model_df_numeric['Market Cap']
 
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-            model = RandomForestRegressor(n_estimators=100, random_state=42)
-            model.fit(X_train, y_train)
+            X_train_numeric, X_test_numeric, y_train_numeric, y_test_numeric = train_test_split(X_numeric, y_numeric, test_size=0.2, random_state=42)
+            model_numeric = RandomForestRegressor(n_estimators=100, random_state=42)
+            model_numeric.fit(X_train_numeric, y_train_numeric)
 
             st.markdown("### Predict Market Cap from Numerical Features")
-            user_inputs = {}
-            for feature in X.columns:
-                min_val, max_val = float(X[feature].min()), float(X[feature].max())
-                mean_val = float(X[feature].mean())
-                user_inputs[feature] = st.number_input(f"{feature}", min_value=min_val, max_value=max_val, value=mean_val)
+            user_inputs_numeric = {}
+            for feature in X_numeric.columns:
+                min_val, max_val = float(X_numeric[feature].min()), float(X_numeric[feature].max())
+                mean_val = float(X_numeric[feature].mean())
+                user_inputs_numeric[feature] = st.number_input(f"{feature}", min_value=min_val, max_value=max_val, value=mean_val)
 
-            input_df = pd.DataFrame([user_inputs])
-            prediction = model.predict(input_df)[0]
-            st.success(f"Predicted Market Cap: ${prediction:,.0f}")
+            input_df_numeric = pd.DataFrame([user_inputs_numeric])
+            prediction_numeric = model_numeric.predict(input_df_numeric)[0]
+            st.success(f"Predicted Market Cap: ${prediction_numeric:,.0f}")
         else:
             st.warning("Not enough numeric data with 'Market Cap' to train a prediction model.")
 
