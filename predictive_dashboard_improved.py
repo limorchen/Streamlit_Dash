@@ -215,11 +215,12 @@ if uploaded_file:
                 user_inputs_full = {}
 
                 # Categorical features
+                # Categorical features
                 for cat_col in all_available_categorical:
                     unique_values = model_df_full[cat_col].dropna().unique()
                     selected_value = st.selectbox(f"Select {cat_col}", options=unique_values, key=f"{cat_col}_full")
                     user_inputs_full[cat_col] = selected_value
-
+                    
                 # Prepare input DataFrame for prediction
                 input_data = {} # Removed 'Partnership Count'
                 for cat_col in all_available_categorical:
