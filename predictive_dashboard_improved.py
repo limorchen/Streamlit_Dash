@@ -193,7 +193,7 @@ if uploaded_file:
 
         if 'Market Cap' in model_df_full.columns and len(model_df_full) >= 10:
             # Select features for the model
-            features = [] # Removed 'Partnership Count'
+            features = []
             categorical_features = ['Business Area', 'product', 'Location', 'vertical', 'Stage of development']
             all_available_categorical = [col for col in categorical_features if col in model_df_full.columns]
             features.extend(all_available_categorical)
@@ -201,6 +201,12 @@ if uploaded_file:
             model_df_prepared = model_df_full[features + ['Market Cap']].dropna()
 
             if not model_df_prepared.empty:
+                # Print unique locations for debugging
+                if 'Location' in model_df_prepared.columns:
+                    unique_locations = model_df_prepared['Location'].unique()
+                    st.write("Unique values in 'Location' before prediction model:")
+                    st.write(unique_locations)
+
                 # One-hot encode categorical features
                 model_df_encoded = pd.get_dummies(model_df_prepared, columns=all_available_categorical, dummy_na=False)
 
@@ -211,18 +217,17 @@ if uploaded_file:
                 model_full = RandomForestRegressor(n_estimators=100, random_state=42)
                 model_full.fit(X_train, y_train)
 
-                st.markdown("### Predict Market Cap from Categorical Features") # Updated title
+                st.markdown("### Predict Market Cap from Categorical Features")
                 user_inputs_full = {}
 
-                # Categorical features
                 # Categorical features
                 for cat_col in all_available_categorical:
                     unique_values = model_df_full[cat_col].dropna().unique()
                     selected_value = st.selectbox(f"Select {cat_col}", options=unique_values, key=f"{cat_col}_full")
                     user_inputs_full[cat_col] = selected_value
-                    
+
                 # Prepare input DataFrame for prediction
-                input_data = {} # Removed 'Partnership Count'
+                input_data = {}
                 for cat_col in all_available_categorical:
                     input_data[cat_col] = [user_inputs_full.get(cat_col, None)]
                 input_df_full = pd.DataFrame(input_data)
@@ -237,46 +242,13 @@ if uploaded_file:
                 input_df_encoded = input_df_encoded[X.columns]
 
                 prediction_full = model_full.predict(input_df_encoded)[0]
-                st.success(f"Predicted Market Cap (from categorical features): ${prediction_full:,.0f}") # Updated success message
+                st.success(f"Predicted Market Cap (from categorical features): ${prediction_full:,.0f}")
 
             else:
                 st.warning("Not enough data with selected features and 'Market Cap' to train the model.")
 
         else:
             st.warning("Not enough data with 'Market Cap' to train a prediction model with more features.")
-
-        # --- Previous Simple Market Cap Prediction (Numerical Only) ---
-        st.subheader("Predict Market Cap (Simple Model - Numerical Only)")
-        # Prepare dataset: only numeric columns and drop NA
-        model_df_numeric = df.select_dtypes(include=[np.number]).dropna()
-
-        if 'Market Cap' in model_df_numeric.columns and len(model_df_numeric) >= 10:
-            # Remove 'Partnership Count' if it's numeric
-            columns_to_drop = ['Market Cap']
-            if 'Partnership Count' in model_df_numeric.columns:
-                columns_to_drop.append('Partnership Count')
-            X_numeric = model_df_numeric.drop(columns=columns_to_drop, errors='ignore')
-            y_numeric = model_df_numeric['Market Cap']
-
-            if not X_numeric.empty: # Check if there are any remaining numerical features
-                X_train_numeric, X_test_numeric, y_train_numeric, y_test_numeric = train_test_split(X_numeric, y_numeric, test_size=0.2, random_state=42)
-                model_numeric = RandomForestRegressor(n_estimators=100, random_state=42)
-                model_numeric.fit(X_train_numeric, y_train_numeric)
-
-                st.markdown("### Predict Market Cap from Numerical Features (Excluding Partnership Count)")
-                user_inputs_numeric = {}
-                for feature in X_numeric.columns:
-                    min_val, max_val = float(X_numeric[feature].min()), float(X_numeric[feature].max())
-                    mean_val = float(X_numeric[feature].mean())
-                    user_inputs_numeric[feature] = st.number_input(f"{feature}", min_value=min_val, max_value=max_val, value=mean_val, key=f"{feature}_numeric")
-
-                input_df_numeric = pd.DataFrame([user_inputs_numeric])
-                prediction_numeric = model_numeric.predict(input_df_numeric)[0]
-                st.success(f"Predicted Market Cap: ${prediction_numeric:,.0f}")
-            else:
-                st.warning("No remaining numerical features to train the simple prediction model (excluding Market Cap and Partnership Count).")
-        else:
-            st.warning("Not enough numeric data with 'Market Cap' to train a prediction model.")
 
 
 
