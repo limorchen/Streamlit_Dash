@@ -251,29 +251,31 @@ if uploaded_file:
 
         if 'Market Cap' in model_df_numeric.columns and len(model_df_numeric) >= 10:
             # Remove 'Partnership Count' if it's numeric
+            columns_to_drop = ['Market Cap']
             if 'Partnership Count' in model_df_numeric.columns:
-                X_numeric = model_df_numeric.drop(columns=['Market Cap', 'Partnership Count'], errors='ignore')
-            else:
-                X_numeric = model_df_numeric.drop(columns=['Market Cap'])
+                columns_to_drop.append('Partnership Count')
+            X_numeric = model_df_numeric.drop(columns=columns_to_drop, errors='ignore')
             y_numeric = model_df_numeric['Market Cap']
 
-            X_train_numeric, X_test_numeric, y_train_numeric, y_test_numeric = train_test_split(X_numeric, y_numeric, test_size=0.2, random_state=42)
-            model_numeric = RandomForestRegressor(n_estimators=100, random_state=42)
-            model_numeric.fit(X_train_numeric, y_train_numeric)
+            if not X_numeric.empty: # Check if there are any remaining numerical features
+                X_train_numeric, X_test_numeric, y_train_numeric, y_test_numeric = train_test_split(X_numeric, y_numeric, test_size=0.2, random_state=42)
+                model_numeric = RandomForestRegressor(n_estimators=100, random_state=42)
+                model_numeric.fit(X_train_numeric, y_train_numeric)
 
-            st.markdown("### Predict Market Cap from Numerical Features (Excluding Partnership Count)") # Updated title
-            user_inputs_numeric = {}
-            for feature in X_numeric.columns:
-                min_val, max_val = float(X_numeric[feature].min()), float(X_numeric[feature].max())
-                mean_val = float(X_numeric[feature].mean())
-                user_inputs_numeric[feature] = st.number_input(f"{feature}", min_value=min_val, max_value=max_val, value=mean_val, key=f"{feature}_numeric")
+                st.markdown("### Predict Market Cap from Numerical Features (Excluding Partnership Count)")
+                user_inputs_numeric = {}
+                for feature in X_numeric.columns:
+                    min_val, max_val = float(X_numeric[feature].min()), float(X_numeric[feature].max())
+                    mean_val = float(X_numeric[feature].mean())
+                    user_inputs_numeric[feature] = st.number_input(f"{feature}", min_value=min_val, max_value=max_val, value=mean_val, key=f"{feature}_numeric")
 
-            input_df_numeric = pd.DataFrame([user_inputs_numeric])
-            prediction_numeric = model_numeric.predict(input_df_numeric)[0]
-            st.success(f"Predicted Market Cap: ${prediction_numeric:,.0f}")
+                input_df_numeric = pd.DataFrame([user_inputs_numeric])
+                prediction_numeric = model_numeric.predict(input_df_numeric)[0]
+                st.success(f"Predicted Market Cap: ${prediction_numeric:,.0f}")
+            else:
+                st.warning("No remaining numerical features to train the simple prediction model (excluding Market Cap and Partnership Count).")
         else:
             st.warning("Not enough numeric data with 'Market Cap' to train a prediction model.")
-
 
 
 
