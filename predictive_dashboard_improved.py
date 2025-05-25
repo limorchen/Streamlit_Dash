@@ -154,6 +154,38 @@ if uploaded_file:
                 key="product_distribution"
             )
 
+        # --- Heatmap: Business Area vs. Notable Partnerships ---
+        if 'Business Area' in df.columns and 'Parsed Partnerships' in df.columns:
+            st.subheader("Heatmap: Business Area vs. Notable Partnerships")
+
+            df_heatmap = df.copy()
+            df_heatmap['Business Area'] = df_heatmap['Business Area'].astype(str).str.split(',')
+            df_heatmap['Business Area'] = df_heatmap['Business Area'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
+
+            df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].astype(str).str.split(',')
+            df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
+
+            df_exploded = df_heatmap.explode('Business Area').explode('Parsed Partnerships')
+            df_exploded = df_exploded.dropna(subset=['Business Area', 'Parsed Partnerships'])
+
+            if not df_exploded.empty:
+                heatmap_data = pd.crosstab(
+                    df_exploded['Business Area'],
+                    df_exploded['Parsed Partnerships'],
+                    normalize='index'
+                ) * 100
+
+                fig = px.imshow(
+                    heatmap_data,
+                    labels=dict(x="Partnership Type", y="Business Area", color="Percentage (%)"),
+                    color_continuous_scale='YlGnBu',
+                    title='Distribution of Notable Partnerships Across Business Areas (%)'
+                )
+                fig.update_layout(height=500)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No data available to display the Business Area vs. Partnership heatmap.")
+
         # --- Predict Market Cap (More Comprehensive Model) ---
         st.subheader("Predict Market Cap (Including Categorical Features)")
 
@@ -187,14 +219,14 @@ if uploaded_file:
                     min_pc = float(X['Partnership Count'].min())
                     max_pc = float(X['Partnership Count'].max())
                     mean_pc = float(X['Partnership Count'].mean())
-                    user_inputs_full['Partnership Count'] = st.number_input("Partnership Count", min_value=min_pc, max_value=max_pc, value=mean_pc)
+                    user_inputs_full['Partnership Count'] = st.number_input("Partnership Count", min_value=min_pc, max_value=max_pc, value=mean_pc, key="partnership_count_full")
                 else:
                     st.info("Partnership Count not available for prediction input.")
 
                 # Categorical features
                 for cat_col in all_available_categorical:
                     unique_values = model_df_full[cat_col].dropna().unique()
-                    selected_value = st.selectbox(f"Select {cat_col}", options=unique_values)
+                    selected_value = st.selectbox(f"Select {cat_col}", options=unique_values, key=f"{cat_col}_full")
                     user_inputs_full[cat_col] = selected_value
 
                 # Prepare input DataFrame for prediction
@@ -239,15 +271,13 @@ if uploaded_file:
             for feature in X_numeric.columns:
                 min_val, max_val = float(X_numeric[feature].min()), float(X_numeric[feature].max())
                 mean_val = float(X_numeric[feature].mean())
-                user_inputs_numeric[feature] = st.number_input(f"{feature}", min_value=min_val, max_value=max_val, value=mean_val)
+                user_inputs_numeric[feature] = st.number_input(f"{feature}", min_value=min_val, max_value=max_val, value=mean_val, key=f"{feature}_numeric")
 
             input_df_numeric = pd.DataFrame([user_inputs_numeric])
             prediction_numeric = model_numeric.predict(input_df_numeric)[0]
             st.success(f"Predicted Market Cap: ${prediction_numeric:,.0f}")
         else:
             st.warning("Not enough numeric data with 'Market Cap' to train a prediction model.")
-
-
 
 
 
