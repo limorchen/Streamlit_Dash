@@ -241,47 +241,52 @@ if uploaded_file:
             )
 
         # Heatmap: Business Area Type vs. Notable Partnerships
-        if 'Business Area' in df.columns and 'Parsed Partnerships' in df.columns:
-            st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
+if 'Business Area' in df.columns and 'Parsed Partnerships' in df.columns:
+    st.subheader("Heatmap: Business Area Type vs. Notable Partnerships")
 
-            # Confirm column presence and preview contents for debugging
-            # st.write("📊 Columns in DataFrame:", df.columns.tolist())
-            # st.write("📌 Sample Business Area values:", df['Business Area'].dropna().head(5).tolist())
-            # st.write("📌 Sample Partnerships:", df['Parsed Partnerships'].dropna().head(5).tolist())
+    # Show column names and sample values for debugging
+    st.write("✅ DataFrame Columns:", df.columns.tolist())
+    st.write("📌 Sample 'Business Area' values:", df['Business Area'].dropna().head())
+    st.write("📌 Sample 'Parsed Partnerships' values:", df['Parsed Partnerships'].dropna().head())
 
-            # Clean and split comma-separated Business Areas into lists
-            # Ensure 'Business Area' is treated as string before splitting
-            df['Business Area'] = df['Business Area'].astype(str).str.split(',')
-            df['Business Area'] = df['Business Area'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
+    # Convert to string, split, and strip values
+    df['Business Area'] = df['Business Area'].astype(str).str.split(',')
+    df['Business Area'] = df['Business Area'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
 
-            # Explode Business Area and Parsed Partnerships into separate rows
-            df_exploded = df.explode('Business Area')
-            df_exploded = df_exploded.explode('Parsed Partnerships').dropna(subset=['Parsed Partnerships', 'Business Area'])
+    df['Parsed Partnerships'] = df['Parsed Partnerships'].astype(str).str.split(',')
+    df['Parsed Partnerships'] = df['Parsed Partnerships'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
 
-            # Show preview of exploded data for debugging
-            # st.write("📎 Exploded Data Preview:")
-            # st.dataframe(df_exploded.head())
+    # Explode into long format
+    df_exploded = df.explode('Business Area')
+    df_exploded = df_exploded.explode('Parsed Partnerships')
+    df_exploded = df_exploded.dropna(subset=['Business Area', 'Parsed Partnerships'])
 
-            if not df_exploded.empty:
-                # Create normalized crosstab for heatmap
-                heatmap_data = pd.crosstab(
-                    df_exploded['Business Area'],
-                    df_exploded['Parsed Partnerships'],
-                    normalize='index'
-                ) * 100 # Convert to percentage
+    # Debug: check exploded data
+    st.write("🔍 Exploded Data Preview:")
+    st.dataframe(df_exploded.head())
 
-                # Create and display the heatmap
-                fig = px.imshow(
-                    heatmap_data,
-                    labels=dict(x="Partnership Type", y="Business Area", color="Percentage (%)"),
-                    color_continuous_scale='YlGnBu',
-                    title='Distribution of Notable Partnerships Across Business Areas (%)'
-                )
-                fig.update_layout(height=500)
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                # Display info message if no data for heatmap
-                st.info("No data available to display the Business Area vs. Partnership heatmap.")
+    if not df_exploded.empty:
+        # Generate crosstab and convert to percentage
+        heatmap_data = pd.crosstab(
+            df_exploded['Business Area'],
+            df_exploded['Parsed Partnerships'],
+            normalize='index'
+        ) * 100
+
+        st.write("🔢 Crosstab Preview:")
+        st.dataframe(heatmap_data.head())
+
+        # Plot the heatmap using Plotly
+        fig = px.imshow(
+            heatmap_data,
+            labels=dict(x="Partnership Type", y="Business Area", color="Percentage (%)"),
+            color_continuous_scale='YlGnBu',
+            title='Distribution of Notable Partnerships Across Business Areas (%)'
+        )
+        fig.update_layout(height=500)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No data available to display the Business Area vs. Partnership heatmap.")
 
         st.subheader("Predict Market Cap (Simple Model)")
         if 'Market Cap' in df.columns:
