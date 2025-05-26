@@ -1,8 +1,11 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import numpy as np
+import matplotlib.pyplot as plt
 
 # Page config
 st.set_page_config(layout="wide", page_title="Company Insights Dashboard")
@@ -188,11 +191,8 @@ if uploaded_file:
                 y = model_df_encoded['Market Cap']
                 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-                model = RandomForestRegressor(n_estimators=100, random_state=42)
+                model = XGBRegressor(random_state=42)
                 model.fit(X_train, y_train)
-
-                from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-                import numpy as np
 
                 # Predict on the test set
                 y_pred = model.predict(X_test)
@@ -206,6 +206,16 @@ if uploaded_file:
                 st.write(f"**Mean Absolute Error (MAE):** {mae:,.2f}")
                 st.write(f"**Root Mean Squared Error (RMSE):** {rmse:,.2f}")
                 st.write(f"**R-squared (R²):** {r2:.2f}")
+
+                # Visual Diagnostics
+                st.subheader("Visual Diagnostics: Actual vs. Predicted Market Cap")
+                fig_scatter, ax_scatter = plt.subplots()
+                ax_scatter.scatter(y_test, y_pred)
+                ax_scatter.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
+                ax_scatter.set_xlabel("Actual Market Cap")
+                ax_scatter.set_ylabel("Predicted Market Cap")
+                ax_scatter.set_title("Actual vs. Predicted Market Cap (XGBoost)")
+                st.pyplot(fig_scatter)
 
                 user_input = {}
                 for col in used_features:
