@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 
-# Streamlit app setup
+# Page config
 st.set_page_config(layout="wide", page_title="Company Insights Dashboard")
 st.title("Company Insights Dashboard")
 
@@ -15,10 +14,11 @@ if uploaded_file:
     df = pd.read_csv(uploaded_file)
     df.columns = df.columns.str.strip()
 
+    # --- Helper functions ---
     def parse_market_cap(value):
         try:
             value = str(value).strip().replace(",", "").replace("$", "")
-            if pd.isna(value) or value.lower() == 'nan' or not value:
+            if not value or value.lower() == 'nan':
                 return None
             if value.startswith(("<", ">")):
                 value = value[1:]
@@ -34,25 +34,21 @@ if uploaded_file:
         if pd.isna(partnership_str) or partnership_str == '':
             return []
         for sep in [',', ';']:
-            if isinstance(partnership_str, str) and sep in partnership_str:
+            if sep in partnership_str:
                 return [p.strip() for p in partnership_str.split(sep) if p.strip()]
-        return [partnership_str.strip()] if isinstance(partnership_str, str) else []
-
-    def has_partnerships(partnership_list):
-        return len(partnership_list) > 0
+        return [partnership_str.strip()]
 
     def reduce_categories(series, top_n=7, other_label="Other"):
-        top_categories = series.value_counts().nlargest(top_n).index
-        return series.apply(lambda x: x if x in top_categories else other_label)
+        top = series.value_counts().nlargest(top_n).index
+        return series.apply(lambda x: x if x in top else other_label)
 
-    df['Market Cap'] = df['Market Cap'].apply(parse_market_cap) if 'Market Cap' in df.columns else None
+    # --- Preprocess ---
+    if 'Market Cap' in df.columns:
+        df['Market Cap'] = df['Market Cap'].apply(parse_market_cap)
+
     if 'Notable Partnerships/Deals' in df.columns:
         df['Parsed Partnerships'] = df['Notable Partnerships/Deals'].apply(parse_partnerships)
-        df['Has Partnerships'] = df['Parsed Partnerships'].apply(has_partnerships)
-        # Removed 'Partnership Count' calculation
-
-    exclude_cols = ['Company Name', 'Market Cap', 'Parsed Partnerships', 'Has Partnerships'] # Removed 'Partnership Count' from exclude
-    cat_cols = [col for col in df.columns if col not in exclude_cols and df[col].dtype == 'object']
+        df['Has Partnerships'] = df['Parsed Partnerships'].apply(lambda x: len(x) > 0)
 
     business_area_map = {
         'Exosome Therapy': 'Exosome-Based Therapy',
@@ -70,19 +66,21 @@ if uploaded_file:
     if 'Business Area' in df.columns:
         df['Business Area'] = df['Business Area'].replace(business_area_map)
 
+    exclude_cols = ['Company Name', 'Market Cap', 'Parsed Partnerships', 'Has Partnerships']
+    cat_cols = [col for col in df.columns if col not in exclude_cols and df[col].dtype == 'object']
     for col in cat_cols:
         df[col] = reduce_categories(df[col], top_n=5)
 
     st.subheader("Filtered Data")
     st.dataframe(df)
 
-    # Sidebar filters
+    # --- Filters ---
     with st.sidebar:
         st.header("Filters")
-        filters = {}
-        for col in ['Business Area', 'Location']:
-            if col in df.columns:
-                filters[col] = st.multiselect(col, options=df[col].dropna().unique())
+        filters = {
+            col: st.multiselect(col, options=df[col].dropna().unique())
+            for col in ['Business Area', 'Location'] if col in df.columns
+        }
 
     filtered_df = df.copy()
     for col, values in filters.items():
@@ -101,17 +99,12 @@ if uploaded_file:
             partnership_ratio = filtered_df['Has Partnerships'].mean() * 100
             col3.metric("% with Partnerships", f"{partnership_ratio:.1f}%")
 
-        def plot_chart(title, chart_func, key=None):
+        def plot_chart(title, chart_func):
             st.subheader(title)
-            fig = chart_func()
-            st.plotly_chart(fig, use_container_width=True, key=key)
+            st.plotly_chart(chart_func(), use_container_width=True)
 
         if {'Location', 'Market Cap'}.issubset(filtered_df.columns):
-            plot_chart(
-                "Market Cap by Location",
-                lambda: px.box(filtered_df, x="Location", y="Market Cap"),
-                key="marketcap_location"
-            )
+            plot_chart("Market Cap by Location", lambda: px.box(filtered_df, x="Location", y="Market Cap"))
 
         if {'Stage of development', 'Market Cap'}.issubset(filtered_df.columns):
             plot_chart(
@@ -122,11 +115,11 @@ if uploaded_file:
                     y="Market Cap",
                     size="Market Cap",
                     color="Stage of development",
-                    hover_data=["Company Name"] if "Company Name" in df.columns else None),
-                key="marketcap_stage"
+                    hover_data=["Company Name"] if "Company Name" in df.columns else None,
+                ),
             )
 
-        if 'Has Partnerships' in filtered_df.columns and 'Market Cap' in filtered_df.columns:
+        if {'Has Partnerships', 'Market Cap'}.issubset(filtered_df.columns):
             plot_chart(
                 "Partnership Impact on Market Cap",
                 lambda: px.box(
@@ -136,7 +129,6 @@ if uploaded_file:
                     color="Has Partnerships",
                     labels={"Has Partnerships": "Has Notable Partnerships", "Market Cap": "Market Cap ($)"},
                 ),
-                key="partnership_impact"
             )
 
         if 'product' in filtered_df.columns:
@@ -148,30 +140,25 @@ if uploaded_file:
                     product_counts,
                     names='product',
                     values='Count',
-                    title='Companies by product',
                     hole=0.3
-                ) if not filtered_df['product'].dropna().empty else px.pie(names=['No data'], values=[1], title='No product data available'),
-                key="product_distribution"
+                ) if not product_counts.empty else px.pie(names=['No data'], values=[1]),
             )
 
-        # --- Heatmap: Business Area vs. Notable Partnerships ---
-        if 'Business Area' in df.columns and 'Parsed Partnerships' in df.columns:
+        # --- Heatmap ---
+        if {'Business Area', 'Parsed Partnerships'}.issubset(df.columns):
             st.subheader("Heatmap: Business Area vs. Notable Partnerships")
 
             df_heatmap = df.copy()
             df_heatmap['Business Area'] = df_heatmap['Business Area'].astype(str).str.split(',')
-            df_heatmap['Business Area'] = df_heatmap['Business Area'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
-
             df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].astype(str).str.split(',')
-            df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].apply(lambda x: [i.strip() for i in x] if isinstance(x, list) else [])
 
             df_exploded = df_heatmap.explode('Business Area').explode('Parsed Partnerships')
             df_exploded = df_exploded.dropna(subset=['Business Area', 'Parsed Partnerships'])
 
             if not df_exploded.empty:
                 heatmap_data = pd.crosstab(
-                    df_exploded['Business Area'],
-                    df_exploded['Parsed Partnerships'],
+                    df_exploded['Business Area'].str.strip(),
+                    df_exploded['Parsed Partnerships'].str.strip(),
                     normalize='index'
                 ) * 100
 
@@ -184,71 +171,47 @@ if uploaded_file:
                 fig.update_layout(height=500)
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info("No data available to display the Business Area vs. Partnership heatmap.")
+                st.info("No data to display in heatmap.")
 
-        # --- Predict Market Cap (More Comprehensive Model) ---
+        # --- Market Cap Prediction ---
         st.subheader("Predict Market Cap (Including Categorical Features)")
+        model_df = df.dropna(subset=['Market Cap'])
 
-        model_df_full = df.copy().dropna(subset=['Market Cap'])
+        if len(model_df) >= 10:
+            cat_features = ['Business Area', 'product', 'Location', 'vertical', 'Stage of development']
+            used_features = [col for col in cat_features if col in model_df.columns]
+            model_df = model_df[used_features + ['Market Cap']].dropna()
 
-        if 'Market Cap' in model_df_full.columns and len(model_df_full) >= 10:
-            # Select features for the model
-            features = []
-            categorical_features = ['Business Area', 'product', 'Location', 'vertical', 'Stage of development']
-            all_available_categorical = [col for col in categorical_features if col in model_df_full.columns]
-            features.extend(all_available_categorical)
-
-            model_df_prepared = model_df_full[features + ['Market Cap']].dropna()
-
-            if not model_df_prepared.empty:
-                # Print unique locations for debugging
-                if 'Location' in model_df_prepared.columns:
-                    unique_locations = model_df_prepared['Location'].unique()
-                    st.write("Unique values in 'Location' before prediction model:")
-                    st.write(unique_locations)
-
-                # One-hot encode categorical features
-                model_df_encoded = pd.get_dummies(model_df_prepared, columns=all_available_categorical, dummy_na=False)
-
+            if not model_df.empty:
+                model_df_encoded = pd.get_dummies(model_df, columns=used_features)
                 X = model_df_encoded.drop(columns=['Market Cap'])
                 y = model_df_encoded['Market Cap']
-
                 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-                model_full = RandomForestRegressor(n_estimators=100, random_state=42)
-                model_full.fit(X_train, y_train)
 
-                st.markdown("### Predict Market Cap from Categorical Features")
-                user_inputs_full = {}
+                model = RandomForestRegressor(n_estimators=100, random_state=42)
+                model.fit(X_train, y_train)
 
-                # Categorical features
-                for cat_col in all_available_categorical:
-                    unique_values = model_df_full[cat_col].dropna().unique()
-                    selected_value = st.selectbox(f"Select {cat_col}", options=unique_values, key=f"{cat_col}_full")
-                    user_inputs_full[cat_col] = selected_value
+                user_input = {}
+                for col in used_features:
+                    options = df[col].dropna().unique()
+                    user_input[col] = st.selectbox(f"Select {col}", options=options)
 
-                # Prepare input DataFrame for prediction
-                input_data = {}
-                for cat_col in all_available_categorical:
-                    input_data[cat_col] = [user_inputs_full.get(cat_col, None)]
-                input_df_full = pd.DataFrame(input_data)
+                input_df = pd.DataFrame([user_input])
+                input_encoded = pd.get_dummies(input_df, columns=used_features)
 
-                # One-hot encode the input
-                input_df_encoded = pd.get_dummies(input_df_full, columns=all_available_categorical, dummy_na=False)
+                # Align columns
+                for col in X.columns:
+                    if col not in input_encoded.columns:
+                        input_encoded[col] = 0
+                input_encoded = input_encoded[X.columns]
 
-                # Ensure the input has the same columns as the training data
-                missing_cols = set(X.columns) - set(input_df_encoded.columns)
-                for c in missing_cols:
-                    input_df_encoded[c] = 0
-                input_df_encoded = input_df_encoded[X.columns]
-
-                prediction_full = model_full.predict(input_df_encoded)[0]
-                st.success(f"Predicted Market Cap (from categorical features): ${prediction_full:,.0f}")
-
+                prediction = model.predict(input_encoded)[0]
+                st.success(f"Predicted Market Cap: ${prediction:,.0f}")
             else:
-                st.warning("Not enough data with selected features and 'Market Cap' to train the model.")
-
+                st.warning("Not enough data to train prediction model.")
         else:
-            st.warning("Not enough data with 'Market Cap' to train a prediction model with more features.")
+            st.warning("Insufficient data with 'Market Cap' for modeling.")
+
 
 
 
