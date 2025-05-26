@@ -215,7 +215,7 @@ if uploaded_file:
 
                 # Visual Diagnostics
                 st.subheader("Visual Diagnostics: Actual vs. Predicted Market Cap")
-                fig_scatter, ax_scatter = plt.subplots(figsize=(4, 2)) # Pass figsize to subplots
+                fig_scatter, ax_scatter = plt.subplots(figsize=(3, 3)) # Pass figsize to subplots
                 ax_scatter.scatter(y_test, y_pred)
                 ax_scatter.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
                 ax_scatter.set_xlabel("Actual Market Cap")
