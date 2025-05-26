@@ -191,6 +191,22 @@ if uploaded_file:
                 model = RandomForestRegressor(n_estimators=100, random_state=42)
                 model.fit(X_train, y_train)
 
+                from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+                import numpy as np
+
+                # Predict on the test set
+                y_pred = model.predict(X_test)
+
+                # Evaluation metrics
+                mae = mean_absolute_error(y_test, y_pred)
+                rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+                r2 = r2_score(y_test, y_pred)
+
+                st.subheader("Model Evaluation Metrics")
+                st.write(f"**Mean Absolute Error (MAE):** {mae:,.2f}")
+                st.write(f"**Root Mean Squared Error (RMSE):** {rmse:,.2f}")
+                st.write(f"**R-squared (R²):** {r2:.2f}")
+
                 user_input = {}
                 for col in used_features:
                     options = df[col].dropna().unique()
