@@ -188,14 +188,20 @@ if uploaded_file:
             if not model_df.empty:
                 model_df_encoded = pd.get_dummies(model_df, columns=used_features)
                 X = model_df_encoded.drop(columns=['Market Cap'])
-                y = model_df_encoded['Market Cap']
-                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+                y_original = model_df_encoded['Market Cap']
+                y_transformed = np.log1p(y_original) # <--- INSERTED LINES
+
+                X_train, X_test, y_train, y_test_transformed = train_test_split(X, y_transformed, test_size=0.2, random_state=42)
 
                 model = XGBRegressor(random_state=42)
                 model.fit(X_train, y_train)
 
-                # Predict on the test set
-                y_pred = model.predict(X_test)
+                # Predict on the test set (in log scale)
+                y_pred_transformed = model.predict(X_test) # Original prediction
+
+                # Inverse transform the predictions
+                y_pred = np.expm1(y_pred_transformed) # <--- INSERTED LINE
+                y_test = np.expm1(y_test_transformed) # <--- INSERTED LINE
 
                 # Evaluation metrics
                 mae = mean_absolute_error(y_test, y_pred)
@@ -231,7 +237,8 @@ if uploaded_file:
                         input_encoded[col] = 0
                 input_encoded = input_encoded[X.columns]
 
-                prediction = model.predict(input_encoded)[0]
+                predicted_log = model.predict(input_encoded)[0]
+                prediction = np.expm1(predicted_log)
                 st.success(f"Predicted Market Cap: ${prediction:,.0f}")
             else:
                 st.warning("Not enough data to train prediction model.")
