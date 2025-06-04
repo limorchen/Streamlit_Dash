@@ -148,12 +148,24 @@ if uploaded_file:
             )
 
         # --- Heatmap ---
+        # --- Heatmap ---
         if {'Business Area', 'Parsed Partnerships'}.issubset(df.columns):
             st.subheader("Heatmap: Business Area vs. Notable Partnerships")
 
             df_heatmap = df.copy()
+            # Ensure Business Area is also a list of strings if it can contain multiple
+            # If 'Business Area' can contain comma-separated values, keep this.
+            # If it's always single values, you can remove this split too, or just make sure it's consistent.
             df_heatmap['Business Area'] = df_heatmap['Business Area'].astype(str).str.split(',')
-            df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].astype(str).str.split(',')
+
+            # Remove or comment out this line:
+            # df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].astype(str).str.split(',')
+
+            # The 'Parsed Partnerships' column is ALREADY a list of strings from your parse_partnerships function.
+            # Just ensure it's treated as a list for explode.
+            # If there are any NaN values that might cause issues with explode, handle them (e.g., fill with empty list)
+            df_heatmap['Parsed Partnerships'] = df_heatmap['Parsed Partnerships'].apply(lambda x: x if isinstance(x, list) else [])
+
 
             df_exploded = df_heatmap.explode('Business Area').explode('Parsed Partnerships')
             df_exploded = df_exploded.dropna(subset=['Business Area', 'Parsed Partnerships'])
@@ -175,7 +187,6 @@ if uploaded_file:
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("No data to display in heatmap.")
-
         # --- Market Cap Prediction ---
         st.subheader("Predict Market Cap (Including Categorical Features)")
         model_df = df.dropna(subset=['Market Cap'])
