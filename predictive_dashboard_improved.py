@@ -34,12 +34,16 @@ if uploaded_file:
             return None
 
     def parse_partnerships(partnership_str):
-        if pd.isna(partnership_str) or partnership_str == '':
+        if pd.isna(partnership_str) or not partnership_str: # Handle NaN and empty strings
             return []
-        for sep in [',', ';']:
-            if sep in partnership_str:
-                return [p.strip() for p in partnership_str.split(sep) if p.strip()]
-        return [partnership_str.strip()]
+
+        # Step 1: Unify delimiters by replacing all semicolons with commas
+        temp_str = str(partnership_str).replace(';', ',')
+
+        # Step 2: Split by comma and clean up each part (strip whitespace, remove empty strings)
+        parts = [p.strip() for p in temp_str.split(',') if p.strip()]
+
+        return parts
 
     def reduce_categories(series, top_n=7, other_label="Other"):
         top = series.value_counts().nlargest(top_n).index
